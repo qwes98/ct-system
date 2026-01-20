@@ -1,9 +1,10 @@
-## PRD 
+## PRD
 
 ### 1) 목표와 배경
 
 * **제품 목표:** 코딩테스트를 공부하는 학습자를 위한 웹 기반 코딩테스트 연습 플랫폼(MVP)
 * **확장 방향:** 교육용 기능(커리큘럼/학습 진도/피드백/해설/클래스 등)로 확장 가능한 구조
+* **비용 목표:** 월 1만원 이하 (~$7-8 USD) - 무료/저가 인프라 구성으로 최소 비용 운영
 
 ### 2) 타깃 유저 (A.1)
 
@@ -14,6 +15,7 @@
 
 * **제출 완료율:** 90%+
 * **Submit 결과 반환:** 10초 내 95% (P95)
+* **API 가용성:** 95%+ (MVP 단계 완화된 목표)
 
 ---
 
@@ -61,22 +63,37 @@
 
 ---
 
-## 6) 기술 아키텍처 (수정 반영)
+## 6) 기술 아키텍처 (저비용 MVP 구성)
 
-### 6.1 전체 구성(권장)
+### 6.1 전체 구성
 
-**Frontend (Next.js + shadcn/ui + Monaco) → Backend API (Spring Boot) → Execution Engine (Judge0 self-hosted) → DB (PostgreSQL) → Queue (Redis)**
+```
+Vercel (Next.js Frontend) → Single VM (Spring Boot + Judge0)
+                                    ↓
+                              SQLite (File DB)
+```
 
-* 실행 엔진은 **Judge0** 유지(빠른 MVP, 4개 언어 지원 쉬움)
-* Submit은 **비동기(큐 기반 워커 흡수)** 권장
+* **Frontend:** Vercel Free Tier 호스팅
+* **Backend:** 단일 VM에서 Spring Boot + Judge0 운영
+* **Database:** SQLite (MVP) → PostgreSQL (확장시)
+* **Queue:** In-Memory BlockingQueue (MVP) → Redis (확장시)
 
-### 6.2 Frontend
+### 6.2 인프라 옵션
 
-* Framework: Next.js
+| 구성요소 | Option A (무료) | Option B (저가) |
+|----------|-----------------|-----------------|
+| Frontend | Vercel Free | Vercel Free |
+| Backend Server | Oracle Cloud Free Tier | VPS ~$5-6/월 |
+| Database | SQLite | SQLite |
+| **월 총 비용** | **₩0** | **~₩7,000** |
+
+### 6.3 Frontend
+
+* Framework: Next.js (Vercel Free Tier 호스팅)
 * UI: **shadcn/ui**
-* Editor: Monaco(Editor) (함수형 템플릿/언어별 하이라이팅)
+* Editor: Monaco (함수형 템플릿/언어별 하이라이팅)
 
-### 6.3 Backend (Spring) — 핵심 책임
+### 6.4 Backend (Spring) — 핵심 책임
 
 * 문제/테스트케이스/템플릿 제공 API
 * Run/Submit 요청 수신
@@ -84,13 +101,15 @@
 * Judge0 호출 및 결과 수집
 * 제출 이력 저장/조회(게스트 기준)
 
-### 6.4 Queue/Worker (C.7 반영)
+### 6.5 Queue/Worker (저비용 구성)
 
-* **Redis 기반 큐**로 Submit 흡수
-* 목표 동시성:
+* **In-Memory BlockingQueue**로 Submit 비동기 처리
+* 목표 동시성 (MVP - 축소된 목표):
 
-  * Run: 동시 50
-  * Submit: 동시 20 (큐 + 워커 수평 확장으로 대응)
+  * Run: 동시 **10**
+  * Submit: 동시 **5**
+
+> Note: 유저가 거의 없는 MVP 단계에서는 낮은 동시성으로 충분. 확장시 Redis 도입
 
 ---
 
@@ -104,19 +123,21 @@
 * **네트워크 차단**(Outbound/Inbound 모두)
 * 리소스 제한:
 
-  * CPU limit (예: 1 vCPU)
-  * Memory limit (예: 512MB)
-  * Time limit (예: 2~5초, 문제별 설정 가능)
+  * CPU limit: 1 vCPU
+  * Memory limit: **256MB** (저사양 VM 최적화)
+  * Time limit: 5초 (문제별 설정 가능)
 * 실행 후 **컨테이너/임시 파일 정리**
 * 시스템 보호:
 
-  * 요청 rate limit(최소한 IP/세션 기준)
+  * 요청 rate limit(IP 기준)
   * 제출 크기 제한(소스 코드 길이, 입력 크기)
 
 ### 제외(로드맵)
 
 * gVisor/Firecracker 같은 강화 격리
 * 커널 exploit 대응 수준의 하드닝
+* 고가용성 (MVP는 단일 서버 운영)
+* 자동 스케일링
 
 ---
 
