@@ -1,126 +1,157 @@
 # Infrastructure
 
-인프라 구성 및 배포 아키텍처를 정의합니다.
+저비용 MVP 인프라 구성 및 배포 아키텍처를 정의합니다.
 
-## 1. 환경 구성
+## 1. 비용 목표
 
-### 1.1 환경 분류
+**월 1만원 이하 (약 $7-8 USD)**로 운영 가능한 최소 비용 인프라 구성
+
+### 1.1 비용 최적화 원칙
+
+1. **무료 티어 최대 활용**: Oracle Cloud, Vercel, Cloudflare 등
+2. **단일 서버 구성**: 모든 백엔드 서비스를 하나의 VM에서 운영
+3. **관리형 서비스 최소화**: 직접 설치/운영으로 비용 절감
+4. **경량화**: SQLite, 인메모리 큐 등 가벼운 대안 채택
+
+---
+
+## 2. 환경 구성
+
+### 2.1 환경 분류 (MVP 최소화)
 
 | 환경 | 목적 | 구성 |
 |------|------|------|
 | Local | 개발자 로컬 개발 | Docker Compose |
-| Development | 통합 테스트, 기능 검증 | 단일 서버 또는 최소 클라우드 |
-| Staging | 프로덕션 미러링, QA | 프로덕션과 동일 구조 (축소) |
-| Production | 실 서비스 | 고가용성 구성 |
+| Production | MVP 실 서비스 | 단일 VM (무료/저가) |
 
-### 1.2 환경별 리소스 스펙
+> **Note**: MVP 단계에서는 Staging 환경을 생략하고, Local → Production 직접 배포
 
-| 컴포넌트 | Local | Development | Staging | Production |
-|----------|-------|-------------|---------|------------|
-| Frontend | localhost:3000 | 1 instance | 1 instance | 2+ instances |
-| Backend API | localhost:8080 | 1 instance | 1 instance | 2+ instances |
-| Worker | 1 process | 1 process | 2 processes | 3+ processes |
-| PostgreSQL | Docker | t3.micro | t3.small | t3.medium+ |
-| Redis | Docker | t3.micro | t3.small | t3.small+ |
-| Judge0 | Docker | 1 instance | 1 instance | 2+ instances |
+### 2.2 권장 구성: Oracle Cloud Free Tier (완전 무료)
+
+| 컴포넌트 | 구성 | 비용 |
+|----------|------|------|
+| Frontend | Vercel Free Tier | **무료** |
+| Backend + Judge0 | Oracle Cloud ARM VM (4 OCPU, 24GB RAM) | **무료** |
+| Database | SQLite (VM 내) | **무료** |
+| 도메인 | Cloudflare (DNS만) 또는 무료 서브도메인 | **무료** |
+| **월 총 비용** | | **₩0** |
+
+### 2.3 대안 구성: 저가 VPS (월 ~₩7,000)
+
+| 컴포넌트 | 구성 | 비용 (USD) |
+|----------|------|------------|
+| Frontend | Vercel Free Tier | 무료 |
+| Backend + Judge0 | Vultr/DigitalOcean 저가 VPS (1 vCPU, 1-2GB RAM) | ~$5-6/월 |
+| Database | SQLite (VM 내) | 포함 |
+| **월 총 비용** | | **~$5-6 (₩7,000)** |
 
 ---
 
-## 2. Local Development (Docker Compose)
+## 3. Production 아키텍처 (단일 VM)
 
-### 2.1 구성도
+### 3.1 구성도
+
+```
+                    ┌─────────────────┐
+                    │   Cloudflare    │
+                    │   (DNS/CDN)     │
+                    └────────┬────────┘
+                             │
+              ┌──────────────┴──────────────┐
+              │                             │
+              ▼                             ▼
+     ┌────────────────┐            ┌────────────────┐
+     │     Vercel     │            │   Single VM    │
+     │   (Frontend)   │            │  (Backend)     │
+     │    Next.js     │            │                │
+     └────────────────┘            │  ┌──────────┐  │
+              │                    │  │ Spring   │  │
+              │   API Calls        │  │ Boot     │  │
+              └───────────────────▶│  │ :8080    │  │
+                                   │  └────┬─────┘  │
+                                   │       │        │
+                                   │  ┌────▼─────┐  │
+                                   │  │  SQLite  │  │
+                                   │  │  (DB)    │  │
+                                   │  └──────────┘  │
+                                   │                │
+                                   │  ┌──────────┐  │
+                                   │  │ Judge0   │  │
+                                   │  │ (Docker) │  │
+                                   │  │  :2358   │  │
+                                   │  └──────────┘  │
+                                   └────────────────┘
+```
+
+### 3.2 단일 VM 내부 구성
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Single VM                             │
+│  OS: Ubuntu 22.04 / Oracle Linux                        │
+│                                                          │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │              Docker Compose                      │    │
+│  │                                                  │    │
+│  │  ┌────────────┐  ┌────────────┐                │    │
+│  │  │  Spring    │  │  Judge0    │                │    │
+│  │  │   Boot     │  │  Server    │                │    │
+│  │  │  (Java)    │  │  + Worker  │                │    │
+│  │  │   :8080    │  │   :2358    │                │    │
+│  │  └─────┬──────┘  └─────┬──────┘                │    │
+│  │        │               │                        │    │
+│  │        │    ┌──────────┘                       │    │
+│  │        │    │                                   │    │
+│  │        ▼    ▼                                   │    │
+│  │  ┌────────────┐  ┌────────────┐                │    │
+│  │  │  SQLite    │  │ Judge0 DB  │                │    │
+│  │  │  (App DB)  │  │ (Postgres) │                │    │
+│  │  └────────────┘  └────────────┘                │    │
+│  └─────────────────────────────────────────────────┘    │
+│                                                          │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │              Nginx (Reverse Proxy)               │    │
+│  │              :80, :443 (Let's Encrypt)          │    │
+│  └─────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 4. Local Development (Docker Compose)
+
+### 4.1 구성도
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                    Docker Network                        │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐     │
-│  │  postgres   │  │    redis    │  │   judge0    │     │
-│  │   :5432     │  │    :6379    │  │   :2358     │     │
-│  └─────────────┘  └─────────────┘  └─────────────┘     │
-│                                                          │
-│  ┌─────────────────────────────────────────────────┐   │
-│  │              judge0-workers (3)                  │   │
-│  └─────────────────────────────────────────────────┘   │
+│  ┌─────────────┐  ┌─────────────────────────────────┐  │
+│  │  judge0-db  │  │        judge0-server            │  │
+│  │  (postgres) │  │        + judge0-worker          │  │
+│  │    :5432    │  │           :2358                 │  │
+│  └─────────────┘  └─────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────┘
-         │                │                │
-         ▼                ▼                ▼
+         │                        │
+         ▼                        ▼
 ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│  Frontend   │    │   Backend   │    │   Worker    │
-│  (host)     │    │   (host)    │    │   (host)    │
+│  Frontend   │    │   Backend   │    │   SQLite    │
+│  (host)     │    │   (host)    │    │   (file)    │
 │  :3000      │    │   :8080     │    │             │
 └─────────────┘    └─────────────┘    └─────────────┘
 ```
 
-### 2.2 docker-compose.yml
+### 4.2 docker-compose.yml (최소 구성)
 
 ```yaml
 version: '3.8'
 
 services:
-  # PostgreSQL
-  postgres:
-    image: postgres:15-alpine
-    container_name: ct-postgres
-    environment:
-      POSTGRES_DB: ct_system
-      POSTGRES_USER: ct_user
-      POSTGRES_PASSWORD: ct_password
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ct_user -d ct_system"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # Redis
-  redis:
-    image: redis:7-alpine
-    container_name: ct-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    command: redis-server --appendonly yes
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # Judge0 Server
-  judge0-server:
+  # Judge0 Server + Worker (단일 컨테이너)
+  judge0:
     image: judge0/judge0:1.13.0
     container_name: ct-judge0
     ports:
       - "2358:2358"
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - POSTGRES_HOST=judge0-db
-      - POSTGRES_DB=judge0
-      - POSTGRES_USER=judge0
-      - POSTGRES_PASSWORD=judge0_password
-      - DISABLE_SUBMISSION_DESTROY=false
-      - ENABLE_BATCHED_SUBMISSIONS=true
-      - MAX_QUEUE_SIZE=100
-      - CPU_TIME_LIMIT=5
-      - CPU_EXTRA_TIME=1
-      - WALL_TIME_LIMIT=10
-      - MEMORY_LIMIT=512000
-      - MAX_FILE_SIZE=1024
-      - ENABLE_NETWORK=false
-    depends_on:
-      - judge0-db
-      - judge0-redis
-    restart: unless-stopped
-
-  # Judge0 Workers
-  judge0-workers:
-    image: judge0/judge0:1.13.0
-    command: ["./scripts/workers"]
     environment:
       - REDIS_HOST=judge0-redis
       - REDIS_PORT=6379
@@ -128,13 +159,21 @@ services:
       - POSTGRES_DB=judge0
       - POSTGRES_USER=judge0
       - POSTGRES_PASSWORD=judge0_password
+      # 리소스 제한 (MVP용 최소 설정)
+      - MAX_QUEUE_SIZE=10
+      - CPU_TIME_LIMIT=5
+      - WALL_TIME_LIMIT=10
+      - MEMORY_LIMIT=256000
+      - ENABLE_NETWORK=false
+      # 워커 수 최소화
+      - MAX_NUMBER_OF_CONCURRENT_JOBS=2
     depends_on:
-      - judge0-server
-    deploy:
-      replicas: 3
+      - judge0-db
+      - judge0-redis
+    privileged: true
     restart: unless-stopped
 
-  # Judge0 전용 PostgreSQL
+  # Judge0 전용 PostgreSQL (최소 리소스)
   judge0-db:
     image: postgres:15-alpine
     container_name: ct-judge0-db
@@ -144,339 +183,309 @@ services:
       POSTGRES_PASSWORD: judge0_password
     volumes:
       - judge0_db_data:/var/lib/postgresql/data
+    # 메모리 제한
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
-  # Judge0 전용 Redis
+  # Judge0 전용 Redis (최소 리소스)
   judge0-redis:
     image: redis:7-alpine
     container_name: ct-judge0-redis
-    volumes:
-      - judge0_redis_data:/data
-    command: redis-server --appendonly yes
+    command: redis-server --maxmemory 64mb --maxmemory-policy allkeys-lru
+    deploy:
+      resources:
+        limits:
+          memory: 64M
 
 volumes:
-  postgres_data:
-  redis_data:
   judge0_db_data:
-  judge0_redis_data:
 
 networks:
   default:
     name: ct-network
 ```
 
-### 2.3 로컬 실행 명령어
+### 4.3 로컬 실행 명령어
 
 ```bash
 # 인프라 시작
 docker-compose up -d
 
-# 로그 확인
-docker-compose logs -f judge0-server
+# 백엔드 실행 (별도 터미널)
+cd backend && ./gradlew bootRun
+
+# 프론트엔드 실행 (별도 터미널)
+cd frontend && npm run dev
 
 # 상태 확인
 docker-compose ps
 
 # 종료
 docker-compose down
-
-# 볼륨 포함 완전 삭제
-docker-compose down -v
 ```
 
 ---
 
-## 3. Cloud Infrastructure (AWS 기준)
+## 5. Oracle Cloud Free Tier 설정 가이드
 
-### 3.1 Production 아키텍처
+### 5.1 무료 리소스
 
-```
-                        ┌─────────────────┐
-                        │   CloudFront    │
-                        │     (CDN)       │
-                        └────────┬────────┘
-                                 │
-                        ┌────────▼────────┐
-                        │  Route 53 (DNS) │
-                        └────────┬────────┘
-                                 │
-              ┌──────────────────┼──────────────────┐
-              │                  │                  │
-              ▼                  ▼                  ▼
-     ┌────────────────┐ ┌────────────────┐ ┌────────────────┐
-     │    Vercel      │ │      ALB       │ │      ALB       │
-     │  (Frontend)    │ │   (Backend)    │ │   (Judge0)     │
-     └────────────────┘ └───────┬────────┘ └───────┬────────┘
-                                │                  │
-                    ┌───────────┴───────────┐      │
-                    │                       │      │
-              ┌─────▼─────┐          ┌──────▼─────┐│
-              │   ECS     │          │    ECS     ││
-              │  Backend  │          │   Worker   ││
-              │ (Fargate) │          │ (Fargate)  ││
-              └─────┬─────┘          └──────┬─────┘│
-                    │                       │      │
-         ┌──────────┴───────────────────────┘      │
-         │                                         │
-         │  ┌─────────────────────────────────┐    │
-         │  │        Private Subnet           │    │
-         │  │  ┌─────────┐    ┌─────────┐    │    │
-         └──┼─▶│   RDS   │    │ Elasti- │◀───┼────┘
-            │  │PostgreSQL│    │  Cache  │    │
-            │  └─────────┘    │ (Redis) │    │
-            │                 └─────────┘    │
-            │                                │
-            │  ┌─────────────────────────┐   │
-            │  │   EC2 (Judge0 Host)     │   │
-            │  │  - isolate enabled      │   │
-            │  │  - Docker privileged    │   │
-            │  └─────────────────────────┘   │
-            └─────────────────────────────────┘
-```
+| 리소스 | 스펙 | 제한 |
+|--------|------|------|
+| ARM VM | 4 OCPU, 24GB RAM | 항상 무료 |
+| Boot Volume | 200GB | 항상 무료 |
+| Outbound Data | 10TB/월 | 항상 무료 |
 
-### 3.2 AWS 서비스 구성
+> **주의**: AMD VM (1 OCPU, 1GB)도 무료지만, ARM이 훨씬 강력하므로 ARM 권장
 
-| 컴포넌트 | AWS 서비스 | 이유 |
-|----------|------------|------|
-| Frontend Hosting | Vercel | Next.js 최적화, 글로벌 CDN |
-| Backend API | ECS Fargate | 컨테이너 기반, 서버리스 |
-| Worker | ECS Fargate | 스케일링 용이 |
-| Database | RDS PostgreSQL | 관리형, 자동 백업 |
-| Cache/Queue | ElastiCache Redis | 관리형, 클러스터 지원 |
-| Judge0 | EC2 | privileged 컨테이너 필요 |
-| CDN | CloudFront | 정적 자산 캐싱 |
-| DNS | Route 53 | AWS 네이티브 통합 |
-| Secrets | Secrets Manager | 보안 자격 증명 관리 |
-| Monitoring | CloudWatch | 통합 모니터링 |
+### 5.2 VM 생성 가이드
 
-### 3.3 Judge0 특수 요구사항
+1. **Oracle Cloud 계정 생성** (신용카드 필요, 과금 안됨)
+2. **Compute Instance 생성**
+   - Shape: `VM.Standard.A1.Flex` (ARM)
+   - OCPU: 4, Memory: 24GB
+   - Image: Ubuntu 22.04
+   - Boot Volume: 100GB
+3. **네트워크 설정**
+   - Public IP 할당
+   - Security List에 포트 오픈: 80, 443, 8080
 
-Judge0는 `isolate` 기반 샌드박싱을 위해 특수 권한이 필요합니다.
+### 5.3 서버 초기 설정
 
-```yaml
-# EC2에서 Docker로 Judge0 실행시 필요한 설정
-docker run \
-  --privileged \
-  --cap-add=SYS_ADMIN \
-  --security-opt seccomp=unconfined \
-  -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
-  judge0/judge0:1.13.0
-```
+```bash
+# Docker 설치
+sudo apt update
+sudo apt install -y docker.io docker-compose
+sudo usermod -aG docker $USER
 
-**EC2 인스턴스 요구사항:**
-- Instance Type: t3.medium 이상
-- AMI: Amazon Linux 2023
-- Docker 설치 및 privileged 모드 허용
-- cgroup v1 또는 v2 지원
+# Java 17 설치 (Spring Boot용)
+sudo apt install -y openjdk-17-jdk
 
----
+# Nginx 설치
+sudo apt install -y nginx certbot python3-certbot-nginx
 
-## 4. 네트워크 구성
-
-### 4.1 VPC 설계
-
-```
-VPC: 10.0.0.0/16
-│
-├── Public Subnets (ALB, NAT Gateway)
-│   ├── 10.0.1.0/24 (AZ-a)
-│   └── 10.0.2.0/24 (AZ-b)
-│
-├── Private Subnets (ECS, RDS, ElastiCache)
-│   ├── 10.0.10.0/24 (AZ-a)
-│   └── 10.0.20.0/24 (AZ-b)
-│
-└── Isolated Subnets (Judge0)
-    ├── 10.0.100.0/24 (AZ-a)
-    └── 10.0.200.0/24 (AZ-b)
-```
-
-### 4.2 Security Groups
-
-| Security Group | Inbound | Outbound |
-|----------------|---------|----------|
-| ALB-SG | 80, 443 from 0.0.0.0/0 | All to Backend-SG |
-| Backend-SG | 8080 from ALB-SG | All to RDS-SG, Redis-SG, Judge0-SG |
-| Worker-SG | None | All to RDS-SG, Redis-SG, Judge0-SG |
-| RDS-SG | 5432 from Backend-SG, Worker-SG | None |
-| Redis-SG | 6379 from Backend-SG, Worker-SG | None |
-| Judge0-SG | 2358 from Backend-SG, Worker-SG | None (외부 차단) |
-
-### 4.3 Judge0 네트워크 격리
-
-```
-┌─────────────────────────────────────────┐
-│           Isolated Subnet               │
-│  ┌─────────────────────────────────┐   │
-│  │         Judge0 EC2              │   │
-│  │  ┌───────────────────────────┐  │   │
-│  │  │   Docker Container        │  │   │
-│  │  │  ┌─────────────────────┐  │  │   │
-│  │  │  │  isolate sandbox    │  │  │   │
-│  │  │  │  (No network)       │  │  │   │
-│  │  │  └─────────────────────┘  │  │   │
-│  │  └───────────────────────────┘  │   │
-│  └─────────────────────────────────┘   │
-│                                         │
-│  Route Table: No Internet Gateway       │
-│  NACL: Block all outbound to Internet   │
-└─────────────────────────────────────────┘
+# 방화벽 설정
+sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
+sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
+sudo netfilter-persistent save
 ```
 
 ---
 
-## 5. 배포 파이프라인
+## 6. 저가 VPS 대안
 
-### 5.1 CI/CD 구성
+### 6.1 추천 VPS 제공업체
+
+| 제공업체 | 최저 플랜 | 스펙 | 가격 |
+|----------|-----------|------|------|
+| Vultr | Cloud Compute | 1 vCPU, 1GB RAM, 25GB SSD | $5/월 |
+| DigitalOcean | Basic Droplet | 1 vCPU, 1GB RAM, 25GB SSD | $6/월 |
+| Hetzner | CX11 | 1 vCPU, 2GB RAM, 20GB SSD | €3.29/월 |
+| Contabo | VPS S | 4 vCPU, 8GB RAM, 50GB SSD | €5.99/월 |
+
+> **권장**: Hetzner 또는 Contabo (가성비 우수)
+
+### 6.2 VPS 최소 요구사항
+
+- CPU: 1+ vCPU (2+ 권장)
+- RAM: 2GB+ (Judge0 실행을 위해)
+- Storage: 20GB+
+- OS: Ubuntu 22.04 LTS
+
+---
+
+## 7. 배포 파이프라인 (간소화)
+
+### 7.1 CI/CD 구성
 
 ```
-┌─────────┐     ┌─────────┐     ┌─────────┐     ┌─────────┐
-│  Push   │────▶│ GitHub  │────▶│  Build  │────▶│ Deploy  │
-│  Code   │     │ Actions │     │  Test   │     │         │
-└─────────┘     └─────────┘     └─────────┘     └─────────┘
-                     │               │               │
-                     │               │               │
-              ┌──────┴──────┐ ┌─────┴─────┐  ┌─────┴─────┐
-              │   Lint      │ │Unit Tests │  │  Vercel   │
-              │   Type Check│ │Integration│  │  (FE)     │
-              └─────────────┘ └───────────┘  │           │
-                                             │  ECS      │
-                                             │  (BE)     │
-                                             └───────────┘
+┌─────────┐     ┌─────────────┐     ┌─────────────┐
+│  Push   │────▶│   GitHub    │────▶│   Deploy    │
+│  Code   │     │   Actions   │     │             │
+└─────────┘     └─────────────┘     └─────────────┘
+                      │                    │
+                      │              ┌─────┴─────┐
+               ┌──────┴──────┐      │           │
+               │   Build     │      │  Vercel   │
+               │   Test      │      │  (auto)   │
+               └─────────────┘      │           │
+                                    │   SSH     │
+                                    │  Deploy   │
+                                    │  (BE)     │
+                                    └───────────┘
 ```
 
-### 5.2 브랜치별 배포 전략
+### 7.2 브랜치별 배포
 
-| Branch | 환경 | 자동 배포 |
+| Branch | 환경 | 배포 방식 |
 |--------|------|-----------|
-| `feature/*` | - | PR Preview (Vercel) |
-| `develop` | Development | Yes |
-| `release/*` | Staging | Yes |
-| `main` | Production | Manual Approval |
+| `main` | Production | Vercel (자동) + 백엔드 (수동/GitHub Actions) |
+| `feature/*` | - | PR Preview (Vercel만) |
 
-### 5.3 GitHub Actions Workflow 예시
+### 7.3 백엔드 배포 스크립트
+
+```bash
+#!/bin/bash
+# deploy.sh - 서버에서 실행
+
+cd /opt/ct-system
+
+# 최신 코드 pull
+git pull origin main
+
+# 백엔드 빌드
+cd backend
+./gradlew build -x test
+
+# 서비스 재시작
+sudo systemctl restart ct-backend
+```
+
+### 7.4 GitHub Actions (선택적)
 
 ```yaml
 # .github/workflows/deploy.yml
-name: Deploy
+name: Deploy Backend
 
 on:
   push:
-    branches: [main, develop]
-  pull_request:
     branches: [main]
+    paths:
+      - 'backend/**'
 
 jobs:
-  test:
+  deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Backend Tests
-        run: |
-          cd backend
-          ./gradlew test
-
-      - name: Frontend Tests
-        run: |
-          cd frontend
-          npm ci
-          npm run test
-          npm run lint
-
-  deploy-backend:
-    needs: test
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Configure AWS
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Deploy to Server
+        uses: appleboy/ssh-action@v1.0.0
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-northeast-2
-
-      - name: Build and Push to ECR
-        run: |
-          aws ecr get-login-password | docker login --username AWS --password-stdin $ECR_REGISTRY
-          docker build -t ct-backend ./backend
-          docker tag ct-backend:latest $ECR_REGISTRY/ct-backend:${{ github.sha }}
-          docker push $ECR_REGISTRY/ct-backend:${{ github.sha }}
-
-      - name: Deploy to ECS
-        run: |
-          aws ecs update-service --cluster ct-cluster --service ct-backend --force-new-deployment
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            cd /opt/ct-system
+            git pull origin main
+            cd backend
+            ./gradlew build -x test
+            sudo systemctl restart ct-backend
 ```
 
 ---
 
-## 6. 비용 추정 (MVP)
+## 8. 비용 비교표
 
-### 6.1 AWS 월 예상 비용 (ap-northeast-2)
+### 8.1 구성별 월 비용
 
-| 서비스 | 스펙 | 월 비용 (USD) |
-|--------|------|---------------|
-| RDS PostgreSQL | db.t3.micro | ~$15 |
-| ElastiCache Redis | cache.t3.micro | ~$12 |
-| ECS Fargate (Backend) | 0.5 vCPU, 1GB x 2 | ~$30 |
-| ECS Fargate (Worker) | 0.5 vCPU, 1GB x 2 | ~$30 |
-| EC2 (Judge0) | t3.medium x 1 | ~$30 |
-| ALB | 1 ALB | ~$20 |
-| Data Transfer | ~10GB | ~$1 |
-| **합계** | | **~$140/월** |
+| 구성 | Frontend | Backend | DB | 총 비용 |
+|------|----------|---------|-----|---------|
+| **Oracle Free** | Vercel 무료 | OCI ARM 무료 | SQLite | **₩0** |
+| **저가 VPS** | Vercel 무료 | Vultr $5 | SQLite | **~₩7,000** |
+| **기존 AWS** | Vercel | ECS + RDS + ElastiCache | PostgreSQL | **~₩180,000** |
 
-### 6.2 비용 최적화 방안
+### 8.2 트레이드오프
 
-1. **Spot Instance**: Judge0 EC2에 Spot 사용 (50-70% 절감)
-2. **Reserved Instance**: 안정화 후 1년 예약 (30-40% 절감)
-3. **Auto Scaling**: 사용량 기반 스케일링으로 비피크 시간 비용 절감
-4. **Vercel Free Tier**: 프론트엔드는 Vercel Free/Pro로 비용 절감
+| 항목 | 무료/저가 구성 | AWS 구성 |
+|------|----------------|----------|
+| 비용 | ₩0 ~ ₩10,000/월 | ₩150,000+/월 |
+| 가용성 | 단일 장애점 | 고가용성 |
+| 확장성 | 수동 (서버 교체) | 자동 스케일링 |
+| 동시 처리 | Run 10, Submit 5 | Run 50, Submit 20 |
+| 복구 시간 | 수 시간 | 수 분 |
+| 운영 부담 | 직접 관리 | 관리형 서비스 |
 
----
-
-## 7. 모니터링 & 알림
-
-### 7.1 CloudWatch 대시보드
-
-**핵심 메트릭:**
-- API Response Time (P50, P95, P99)
-- Error Rate (4xx, 5xx)
-- ECS CPU/Memory Utilization
-- RDS Connections / CPU
-- Redis Memory / Connections
-- Judge0 Queue Depth
-
-### 7.2 알림 설정
-
-| 메트릭 | 임계값 | 알림 채널 |
-|--------|--------|-----------|
-| API P95 Latency | > 3초 | Slack |
-| Error Rate | > 5% | Slack + PagerDuty |
-| ECS CPU | > 80% | Slack |
-| RDS Storage | > 80% | Slack |
-| Judge0 Queue Depth | > 50 | Slack |
+> **MVP 판단**: 유저가 거의 없는 초기 단계에서는 무료/저가 구성으로 충분
 
 ---
 
-## 8. 재해 복구
+## 9. 모니터링 (무료 도구)
 
-### 8.1 백업 전략
+### 9.1 권장 무료 모니터링
 
-| 대상 | 주기 | 보관 기간 |
-|------|------|-----------|
-| RDS Snapshot | Daily | 7일 |
-| RDS Point-in-time | 연속 | 7일 |
-| Redis Snapshot | Daily | 3일 |
+| 도구 | 용도 | 비용 |
+|------|------|------|
+| UptimeRobot | 서비스 가용성 모니터링 | 무료 (50개 모니터) |
+| Sentry | 에러 트래킹 | 무료 (5k 이벤트/월) |
+| Vercel Analytics | 프론트엔드 성능 | 무료 (제한적) |
 
-### 8.2 RTO/RPO 목표 (MVP)
+### 9.2 서버 모니터링
 
-| 메트릭 | 목표 |
-|--------|------|
-| RTO (Recovery Time Objective) | < 1시간 |
-| RPO (Recovery Point Objective) | < 1시간 |
+```bash
+# 간단한 헬스체크 스크립트
+#!/bin/bash
+# /opt/scripts/healthcheck.sh
 
-**복구 절차:**
-1. RDS: 최신 스냅샷에서 복원
-2. ECS: 새 태스크 자동 재시작
-3. Judge0: EC2 AMI에서 복원 또는 새 인스턴스 시작
+# 백엔드 체크
+curl -sf http://localhost:8080/actuator/health || echo "Backend DOWN"
+
+# Judge0 체크
+curl -sf http://localhost:2358/about || echo "Judge0 DOWN"
+```
+
+```bash
+# Crontab 등록
+*/5 * * * * /opt/scripts/healthcheck.sh >> /var/log/healthcheck.log 2>&1
+```
+
+---
+
+## 10. 백업 전략 (MVP)
+
+### 10.1 SQLite 백업
+
+```bash
+#!/bin/bash
+# /opt/scripts/backup.sh
+
+BACKUP_DIR=/opt/backups
+DB_PATH=/opt/ct-system/data/ct_system.db
+DATE=$(date +%Y%m%d_%H%M%S)
+
+# SQLite 백업 (hot backup)
+sqlite3 $DB_PATH ".backup '$BACKUP_DIR/ct_system_$DATE.db'"
+
+# 7일 이상 된 백업 삭제
+find $BACKUP_DIR -name "*.db" -mtime +7 -delete
+```
+
+```bash
+# 매일 자정 백업
+0 0 * * * /opt/scripts/backup.sh
+```
+
+### 10.2 복구 절차
+
+1. **서버 장애 시**
+   - 새 VM 생성
+   - 동일 설정 스크립트 실행
+   - 최신 백업에서 DB 복원
+
+2. **데이터 복구**
+   ```bash
+   cp /opt/backups/ct_system_YYYYMMDD.db /opt/ct-system/data/ct_system.db
+   sudo systemctl restart ct-backend
+   ```
+
+---
+
+## 11. 확장 경로
+
+MVP 성공 후 트래픽 증가 시 단계적 확장:
+
+### Phase 1: 현재 (MVP)
+- 단일 VM, SQLite, 무료/저가
+
+### Phase 2: 초기 성장
+- VPS 업그레이드 (2-4 vCPU, 4-8GB RAM)
+- SQLite → PostgreSQL 마이그레이션
+- 비용: 월 ₩20,000 ~ ₩50,000
+
+### Phase 3: 본격 성장
+- 클라우드 마이그레이션 (AWS/GCP)
+- 로드밸런서 + 다중 인스턴스
+- 관리형 DB 도입
+- 비용: 월 ₩100,000+
+
+> **원칙**: 필요할 때 확장. 미리 과투자하지 않음.

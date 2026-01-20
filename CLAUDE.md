@@ -8,37 +8,47 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Status**: Pre-implementation phase (PRD complete, no code yet)
 
+## Cost Target
+
+**월 1만원 이하 (~$7-8 USD)** - 무료/저가 인프라 구성으로 최소 비용 운영
+
 ## Planned Technology Stack
 
 ### Frontend
-- Framework: Next.js
+- Framework: Next.js (Vercel Free Tier 호스팅)
 - UI Library: shadcn/ui
 - Code Editor: Monaco Editor
 - Languages supported: Python, Java, C++, JavaScript
 
 ### Backend
 - Framework: Spring Boot (Java)
-- Database: PostgreSQL
-- Message Queue: Redis
-- Code Execution: Judge0 (self-hosted)
+- Database: **SQLite** (MVP) → PostgreSQL (확장시)
+- Message Queue: **In-Memory Queue** (MVP) → Redis (확장시)
+- Code Execution: Judge0 (self-hosted, minimal config)
+
+### Infrastructure
+- **권장**: Oracle Cloud Free Tier (4 OCPU, 24GB RAM - 완전 무료)
+- **대안**: 저가 VPS (Hetzner, Contabo - 월 ~$5-6)
 
 ## Architecture
 
 ```
-Next.js Frontend → Spring Boot API → Judge0 Execution Engine
-                        ↓
-                PostgreSQL + Redis Queue
+Vercel (Next.js Frontend) → Single VM (Spring Boot + Judge0)
+                                    ↓
+                              SQLite (File DB)
 ```
 
 ### Key Components
-1. **Frontend**: Monaco-based code editor, problem viewer, submission UI
+1. **Frontend**: Monaco-based code editor, problem viewer, submission UI (Vercel Free)
 2. **Backend API**: Problem/template endpoints, submission state machine (queued→running→done), Judge0 coordination
-3. **Execution Engine**: Judge0 for sandboxed code execution with container isolation
-4. **Queue System**: Redis for async Submit processing (Run is synchronous)
+3. **Execution Engine**: Judge0 for sandboxed code execution (Docker, minimal workers)
+4. **Queue System**: In-memory BlockingQueue for async Submit (no Redis needed)
 
-### Concurrency Targets
-- Run: 50 concurrent
-- Submit: 20 concurrent (with horizontal scaling via queue workers)
+### Concurrency Targets (MVP - 축소됨)
+- Run: **10 concurrent**
+- Submit: **5 concurrent**
+
+> Note: 유저가 거의 없는 MVP 단계에서는 낮은 동시성으로 충분
 
 ## MVP Feature Scope
 
@@ -57,6 +67,8 @@ Next.js Frontend → Spring Boot API → Judge0 Execution Engine
 - Partial scoring
 - Plagiarism detection
 - Detailed error log exposure
+- **고가용성** (단일 서버로 운영)
+- **자동 스케일링**
 
 ## Problem Format Policy
 
@@ -70,15 +82,27 @@ Next.js Frontend → Spring Boot API → Judge0 Execution Engine
 
 - Container-based isolation (Judge0 default)
 - Network blocking (all directions)
-- Resource limits: 1 vCPU, 512MB RAM, 2-5s timeout (configurable per problem)
-- Rate limiting by IP/session
+- Resource limits: 1 vCPU, **256MB RAM**, 5s timeout
+- Simple rate limiting by IP
 - Code size and input size restrictions
 
 ## Success Metrics
 
 - **Submission completion rate**: 90%+
 - **Submit response time**: <10 seconds (P95)
+- **API availability**: 95%+ (MVP에서 완화된 목표)
+
+## Cost Breakdown
+
+| Component | Option A (Free) | Option B (Low-cost) |
+|-----------|-----------------|---------------------|
+| Frontend | Vercel Free | Vercel Free |
+| Backend Server | Oracle Cloud Free | VPS ~$5-6/월 |
+| Database | SQLite | SQLite |
+| Total | **₩0/월** | **~₩7,000/월** |
 
 ## Reference
 
 See `/docs/PRD.md` for full product requirements in Korean.
+See `/docs/architecture/INFRASTRUCTURE.md` for detailed infrastructure setup.
+See `/docs/architecture/TECH_STACK_DECISION.md` for technology choices rationale.
