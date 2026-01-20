@@ -199,7 +199,7 @@ M#: 마일스톤 번호 (M0-M6)
 
 | 코드 | 작업 | 선행 작업 | 산출물 |
 |------|------|-----------|--------|
-| M3-BE-021 | Redis 큐 설정 | - | Config |
+| M3-BE-021 | In-Memory 큐 설정 (BlockingQueue) | - | Config |
 | M3-BE-022 | SubmitRequest DTO | - | DTO |
 | M3-BE-023 | SubmitResponse DTO | - | DTO |
 | M3-BE-024 | SubmitService 구현 | 013, 021 | Service |
@@ -276,8 +276,8 @@ M#: 마일스톤 번호 (M0-M6)
 | 코드 | 작업 | 선행 작업 | 산출물 |
 |------|------|-----------|--------|
 | M5-PERF-001 | 부하 테스트 스크립트 작성 | - | k6/Artillery scripts |
-| M5-PERF-002 | Run 동시성 테스트 (50) | 001 | Test report |
-| M5-PERF-003 | Submit 동시성 테스트 (20) | 001 | Test report |
+| M5-PERF-002 | Run 동시성 테스트 (10) | 001 | Test report |
+| M5-PERF-003 | Submit 동시성 테스트 (5) | 001 | Test report |
 | M5-PERF-004 | 응답시간 P95 측정 | 002, 003 | Metrics |
 | M5-PERF-005 | 병목 지점 분석 및 개선 | 004 | Optimizations |
 
@@ -295,11 +295,11 @@ M#: 마일스톤 번호 (M0-M6)
 
 | 코드 | 작업 | 선행 작업 | 산출물 |
 |------|------|-----------|--------|
-| M5-INFRA-001 | AWS 인프라 프로비저닝 | - | AWS resources |
+| M5-INFRA-001 | Oracle Cloud Free Tier / VPS 프로비저닝 | - | VM instance |
 | M5-INFRA-002 | 프로덕션 환경변수 설정 | 001 | Secrets |
-| M5-INFRA-003 | 모니터링 대시보드 설정 | 001 | Dashboard |
+| M5-INFRA-003 | 모니터링 설정 (기본) | 001 | Uptime check |
 | M5-INFRA-004 | 알림 설정 | 003 | Alerts |
-| M5-INFRA-005 | 백업 설정 | 001 | Backup config |
+| M5-INFRA-005 | SQLite 백업 스크립트 | 001 | Backup script |
 | M5-INFRA-006 | 배포 파이프라인 완성 | 001 | CD pipeline |
 | M5-INFRA-007 | 배포 리허설 | 001-006 | Rehearsal log |
 
