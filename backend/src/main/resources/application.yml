@@ -49,7 +49,7 @@ spring:
       on-profile: local
 
   datasource:
-    url: jdbc:sqlite:./data/ct_system.db
+    url: jdbc:sqlite:${DB_PATH:./data/ct_system.db}
     driver-class-name: org.sqlite.JDBC
 
   jpa:
@@ -69,7 +69,7 @@ spring:
       on-profile: production
 
   datasource:
-    url: jdbc:sqlite:./data/ct_system.db
+    url: jdbc:sqlite:${DB_PATH:./data/ct_system.db}
     driver-class-name: org.sqlite.JDBC
 
   jpa:
