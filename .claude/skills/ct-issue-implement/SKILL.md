@@ -160,12 +160,12 @@ cd "$WORKTREE_PATH"
 ISSUE_TITLE=$(gh issue view "$ISSUE_NUM" --json title -q '.title')
 
 # 2. PR 생성 (Issue 제목 그대로 사용)
-gh pr create --title "$ISSUE_TITLE" --body "$(cat <<'EOF'
+gh pr create --title "$ISSUE_TITLE" --body "$(cat <<EOF
 ## Summary
 - 구현 내용 요약
 
 ## Related Issue
-Closes #'"$ISSUE_NUM"'
+Closes #$ISSUE_NUM
 
 ## Test Plan
 - [ ] 테스트 항목
@@ -213,22 +213,24 @@ gh pr create --title "{Issue 제목 그대로}" --body "..."
 
 ### PR 생성 절차
 
-1. **Issue 제목 확인** (필수)
+1. **Issue 정보 설정** (필수)
    ```bash
-   ISSUE_TITLE=$(gh issue view {issue-number} --json title -q '.title')
+   # ⚠️ {issue-number}를 실제 이슈 번호로 교체하세요.
+   ISSUE_NUM={issue-number}
+   ISSUE_TITLE=$(gh issue view "$ISSUE_NUM" --json title -q '.title')
    echo "Issue 제목: $ISSUE_TITLE"
    ```
 
-2. **PR 생성** (Issue 제목을 그대로 사용)
+2. **PR 생성** (Issue 제목과 번호를 사용)
    ```bash
    gh pr create \
      --title "$ISSUE_TITLE" \
-     --body "$(cat <<'EOF'
+     --body "$(cat <<EOF
    ## Summary
    - [구현 내용 요약]
 
    ## Related Issue
-   Closes #{issue-number}
+   Closes #$ISSUE_NUM
 
    ## Test Plan
    - [ ] 테스트 항목
