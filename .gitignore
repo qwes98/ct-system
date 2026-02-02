@@ -4,3 +4,6 @@ frontend/.next/
 frontend/out/
 frontend/.env.local
 frontend/.env*.local
+
+# Docker
+docker/.env

@@ -1,0 +1,98 @@
+version: '3.8'
+
+services:
+  # Judge0 Code Execution Engine
+  judge0:
+    image: judge0/judge0:1.13.0
+    container_name: ct-judge0
+    ports:
+      - "${JUDGE0_PORT:-2358}:2358"
+    environment:
+      # Redis 연결
+      - REDIS_HOST=judge0-redis
+      - REDIS_PORT=6379
+      # PostgreSQL 연결
+      - POSTGRES_HOST=judge0-db
+      - POSTGRES_DB=${JUDGE0_DB_NAME:-judge0}
+      - POSTGRES_USER=${JUDGE0_DB_USER:-judge0}
+      - POSTGRES_PASSWORD=${JUDGE0_DB_PASSWORD:?에러: .env 파일에 JUDGE0_DB_PASSWORD가 설정되지 않았습니다.}
+      # 리소스 제한 (MVP용 최소 설정)
+      - MAX_QUEUE_SIZE=${JUDGE0_MAX_QUEUE_SIZE:-10}
+      - CPU_TIME_LIMIT=${JUDGE0_CPU_TIME_LIMIT:-5}
+      - WALL_TIME_LIMIT=${JUDGE0_WALL_TIME_LIMIT:-10}
+      - MEMORY_LIMIT=${JUDGE0_MEMORY_LIMIT:-256000}
+      - ENABLE_NETWORK=false
+      # 워커 수 최소화
+      - MAX_NUMBER_OF_CONCURRENT_JOBS=${JUDGE0_MAX_WORKERS:-2}
+    depends_on:
+      judge0-db:
+        condition: service_healthy
+      judge0-redis:
+        condition: service_healthy
+    # Required by Judge0 for isolate sandbox execution - see https://github.com/judge0/judge0
+    privileged: true
+    restart: unless-stopped
+    networks:
+      - ct-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2358/about"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '2'
+
+  # Judge0 전용 PostgreSQL
+  judge0-db:
+    image: postgres:15-alpine
+    container_name: ct-judge0-db
+    environment:
+      POSTGRES_DB: ${JUDGE0_DB_NAME:-judge0}
+      POSTGRES_USER: ${JUDGE0_DB_USER:-judge0}
+      POSTGRES_PASSWORD: ${JUDGE0_DB_PASSWORD:?에러: .env 파일에 JUDGE0_DB_PASSWORD가 설정되지 않았습니다.}
+    volumes:
+      - judge0_db_data:/var/lib/postgresql/data
+    networks:
+      - ct-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${JUDGE0_DB_USER:-judge0} -d ${JUDGE0_DB_NAME:-judge0}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Judge0 전용 Redis
+  judge0-redis:
+    image: redis:7-alpine
+    container_name: ct-judge0-redis
+    command: redis-server --maxmemory 64mb --maxmemory-policy allkeys-lru
+    # Note: No persistence volume - queue data is ephemeral (acceptable for MVP)
+    networks:
+      - ct-network
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  judge0_db_data:
+    name: ct-judge0-db-data
+
+networks:
+  ct-network:
+    name: ct-network
+    driver: bridge
