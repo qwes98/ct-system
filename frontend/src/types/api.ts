@@ -1,5 +1,6 @@
 /**
  * API request/response type definitions for CT-System frontend
+ * Based on API_SPECIFICATION.md
  */
 
 import type { Language, SubmissionStatus } from './domain';
@@ -8,13 +9,21 @@ import type { Language, SubmissionStatus } from './domain';
 export interface ApiResponse<T> {
   data: T;
   success: boolean;
+  timestamp: string;
 }
 
-// API error response
+// API error object (nested within error response)
 export interface ApiError {
-  error: string;
+  code: string;
   message: string;
-  status: number;
+  details?: Record<string, unknown>;
+}
+
+// API error response wrapper
+export interface ApiErrorResponse {
+  success: false;
+  error: ApiError;
+  timestamp: string;
 }
 
 // Run request (execute sample tests only)
@@ -24,10 +33,26 @@ export interface RunRequest {
   code: string;
 }
 
+// Run test result for individual test case
+export interface RunTestResult {
+  testCase: number;
+  passed: boolean;
+  executionTime: number;
+  input: string;
+  expected: string;
+  actual: string;
+}
+
 // Run response
 export interface RunResponse {
-  passed: boolean;
+  status: string;
+  totalTests: number;
+  passedTests: number;
   hasError: boolean;
+  executionTime?: number;
+  memoryUsed?: number;
+  errorType?: string;
+  results: RunTestResult[];
 }
 
 // Submit request (execute all tests)
@@ -39,6 +64,8 @@ export interface SubmitRequest {
 
 // Submit response
 export interface SubmitResponse {
-  submissionId: number;
+  submissionId: string;
   status: SubmissionStatus;
+  queuePosition?: number;
+  estimatedWaitTime?: number;
 }

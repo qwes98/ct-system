@@ -21,10 +21,10 @@ export interface PaginationParams {
   size: number;
 }
 
-// Paginated response wrapper
+// Paginated response wrapper (matches API_SPECIFICATION.md)
 export interface PaginatedResponse<T> {
-  items: T[];
-  total: number;
+  content: T[];
+  totalElements: number;
   page: number;
   size: number;
   totalPages: number;

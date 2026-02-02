@@ -4,30 +4,10 @@
  */
 
 // Domain types
-export type {
-  Difficulty,
-  Language,
-  SubmissionStatus,
-  Problem,
-  SampleTestCase,
-  Submission,
-} from './domain';
+export type * from './domain';
 
 // API types
-export type {
-  ApiResponse,
-  ApiError,
-  RunRequest,
-  RunResponse,
-  SubmitRequest,
-  SubmitResponse,
-} from './api';
+export type * from './api';
 
 // Common types
-export type {
-  Nullable,
-  Optional,
-  AsyncState,
-  PaginationParams,
-  PaginatedResponse,
-} from './common';
+export type * from './common';
