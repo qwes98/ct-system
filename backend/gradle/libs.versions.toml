@@ -1,0 +1,52 @@
+[versions]
+# Spring
+spring-boot = "3.2.2"
+spring-dependency-management = "1.1.4"
+
+# Database
+sqlite-jdbc = "3.45.1.0"
+hibernate-community-dialects = "6.4.2.Final"
+
+# Documentation
+springdoc = "2.3.0"
+
+# Test
+junit-platform = "1.10.2"
+
+[libraries]
+# Spring Boot Starters
+spring-boot-starter-web = { module = "org.springframework.boot:spring-boot-starter-web" }
+spring-boot-starter-data-jpa = { module = "org.springframework.boot:spring-boot-starter-data-jpa" }
+spring-boot-starter-validation = { module = "org.springframework.boot:spring-boot-starter-validation" }
+spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test" }
+
+# Database
+sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite-jdbc" }
+hibernate-community-dialects = { module = "org.hibernate.orm:hibernate-community-dialects", version.ref = "hibernate-community-dialects" }
+
+# Database Migration
+flyway-core = { module = "org.flywaydb:flyway-core" }
+
+# Lombok
+lombok = { module = "org.projectlombok:lombok" }
+
+# Documentation
+springdoc-openapi-starter-webmvc-ui = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc" }
+
+# Test
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+
+[bundles]
+spring-boot-core = [
+    "spring-boot-starter-web",
+    "spring-boot-starter-data-jpa",
+    "spring-boot-starter-validation"
+]
+database = [
+    "sqlite-jdbc",
+    "hibernate-community-dialects"
+]
+
+[plugins]
+spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
+spring-dependency-management = { id = "io.spring.dependency-management", version.ref = "spring-dependency-management" }
