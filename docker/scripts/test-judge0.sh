@@ -19,6 +19,15 @@ PASSED=0
 FAILED=0
 TOTAL=0
 
+# Language IDs
+PYTHON_LANG_ID=71
+JAVA_LANG_ID=62
+
+# Status IDs
+STATUS_ACCEPTED=3
+STATUS_TLE=5
+STATUS_CE=6
+
 # 색상 정의
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -96,20 +105,20 @@ LANGUAGES_RESPONSE=$(curl -sf "${JUDGE0_URL}/languages" 2>/dev/null || echo "CUR
 if [ "$LANGUAGES_RESPONSE" = "CURL_FAILED" ]; then
     fail "GET /languages endpoint unreachable"
 else
-    # Python (id=71) 존재 확인
-    PYTHON_EXISTS=$(echo "$LANGUAGES_RESPONSE" | jq '[.[] | select(.id == 71)] | length' 2>/dev/null || echo "0")
+    # Python 존재 확인
+    PYTHON_EXISTS=$(echo "$LANGUAGES_RESPONSE" | jq "[.[] | select(.id == $PYTHON_LANG_ID)] | length" 2>/dev/null || echo "0")
     if [ "$PYTHON_EXISTS" -gt 0 ]; then
-        pass "Python 3 (language_id=71) available"
+        pass "Python 3 (language_id=$PYTHON_LANG_ID) available"
     else
-        fail "Python 3 (language_id=71) not found in languages list"
+        fail "Python 3 (language_id=$PYTHON_LANG_ID) not found in languages list"
     fi
 
-    # Java (id=62) 존재 확인
-    JAVA_EXISTS=$(echo "$LANGUAGES_RESPONSE" | jq '[.[] | select(.id == 62)] | length' 2>/dev/null || echo "0")
+    # Java 존재 확인
+    JAVA_EXISTS=$(echo "$LANGUAGES_RESPONSE" | jq "[.[] | select(.id == $JAVA_LANG_ID)] | length" 2>/dev/null || echo "0")
     if [ "$JAVA_EXISTS" -gt 0 ]; then
-        pass "Java (language_id=62) available"
+        pass "Java (language_id=$JAVA_LANG_ID) available"
     else
-        fail "Java (language_id=62) not found in languages list"
+        fail "Java (language_id=$JAVA_LANG_ID) not found in languages list"
     fi
 fi
 
@@ -154,13 +163,13 @@ else
     PY_TIME=$(echo "$PYTHON_RESPONSE" | jq -r '.time // "N/A"' 2>/dev/null || echo "N/A")
     PY_MEMORY=$(echo "$PYTHON_RESPONSE" | jq -r '.memory // "N/A"' 2>/dev/null || echo "N/A")
 
-    if [ "$PY_STATUS_ID" = "3" ]; then
-        pass "Python execution: Accepted (status_id=3)"
+    if [ "$PY_STATUS_ID" = "$STATUS_ACCEPTED" ]; then
+        pass "Python execution: Accepted (status_id=$STATUS_ACCEPTED)"
         echo -e "        stdout='$(echo "$PY_STDOUT" | tr -d '\n')' time=${PY_TIME}s memory=${PY_MEMORY}KB"
     else
         PY_STATUS_DESC=$(echo "$PYTHON_RESPONSE" | jq -r '.status.description // "Unknown"' 2>/dev/null || echo "Unknown")
         PY_STDERR=$(echo "$PYTHON_RESPONSE" | jq -r '.stderr // empty' 2>/dev/null || echo "")
-        fail "Python execution: Expected status_id=3 (Accepted), got status_id=$PY_STATUS_ID ($PY_STATUS_DESC)" "${PY_STDERR}"
+        fail "Python execution: Expected status_id=$STATUS_ACCEPTED (Accepted), got status_id=$PY_STATUS_ID ($PY_STATUS_DESC)" "${PY_STDERR}"
     fi
 fi
 
@@ -187,14 +196,14 @@ else
     JAVA_TIME=$(echo "$JAVA_RESPONSE" | jq -r '.time // "N/A"' 2>/dev/null || echo "N/A")
     JAVA_MEMORY=$(echo "$JAVA_RESPONSE" | jq -r '.memory // "N/A"' 2>/dev/null || echo "N/A")
 
-    if [ "$JAVA_STATUS_ID" = "3" ]; then
-        pass "Java execution: Accepted (status_id=3)"
+    if [ "$JAVA_STATUS_ID" = "$STATUS_ACCEPTED" ]; then
+        pass "Java execution: Accepted (status_id=$STATUS_ACCEPTED)"
         echo -e "        stdout='$(echo "$JAVA_STDOUT" | tr -d '\n')' time=${JAVA_TIME}s memory=${JAVA_MEMORY}KB"
     else
         JAVA_STATUS_DESC=$(echo "$JAVA_RESPONSE" | jq -r '.status.description // "Unknown"' 2>/dev/null || echo "Unknown")
         JAVA_COMPILE=$(echo "$JAVA_RESPONSE" | jq -r '.compile_output // empty' 2>/dev/null || echo "")
         JAVA_STDERR=$(echo "$JAVA_RESPONSE" | jq -r '.stderr // empty' 2>/dev/null || echo "")
-        fail "Java execution: Expected status_id=3 (Accepted), got status_id=$JAVA_STATUS_ID ($JAVA_STATUS_DESC)" "${JAVA_COMPILE}${JAVA_STDERR}"
+        fail "Java execution: Expected status_id=$STATUS_ACCEPTED (Accepted), got status_id=$JAVA_STATUS_ID ($JAVA_STATUS_DESC)" "${JAVA_COMPILE}${JAVA_STDERR}"
     fi
 fi
 
@@ -217,11 +226,11 @@ if [ "$TLE_RESPONSE" = "CURL_FAILED" ]; then
     fail "TLE test submission request failed"
 else
     TLE_STATUS_ID=$(echo "$TLE_RESPONSE" | jq -r '.status.id // empty' 2>/dev/null || echo "")
-    if [ "$TLE_STATUS_ID" = "5" ]; then
-        pass "Time Limit Exceeded correctly detected (status_id=5)"
+    if [ "$TLE_STATUS_ID" = "$STATUS_TLE" ]; then
+        pass "Time Limit Exceeded correctly detected (status_id=$STATUS_TLE)"
     else
         TLE_STATUS_DESC=$(echo "$TLE_RESPONSE" | jq -r '.status.description // "Unknown"' 2>/dev/null || echo "Unknown")
-        fail "TLE test: Expected status_id=5 (TLE), got status_id=$TLE_STATUS_ID ($TLE_STATUS_DESC)"
+        fail "TLE test: Expected status_id=$STATUS_TLE (TLE), got status_id=$TLE_STATUS_ID ($TLE_STATUS_DESC)"
     fi
 fi
 
@@ -242,13 +251,13 @@ if [ "$CE_RESPONSE" = "CURL_FAILED" ]; then
     fail "CE test submission request failed"
 else
     CE_STATUS_ID=$(echo "$CE_RESPONSE" | jq -r '.status.id // empty' 2>/dev/null || echo "")
-    if [ "$CE_STATUS_ID" = "6" ]; then
+    if [ "$CE_STATUS_ID" = "$STATUS_CE" ]; then
         CE_OUTPUT=$(echo "$CE_RESPONSE" | jq -r '.compile_output // "N/A"' 2>/dev/null || echo "N/A")
-        pass "Compilation Error correctly detected (status_id=6)"
+        pass "Compilation Error correctly detected (status_id=$STATUS_CE)"
         echo -e "        compile_output: $(echo "$CE_OUTPUT" | head -1)"
     else
         CE_STATUS_DESC=$(echo "$CE_RESPONSE" | jq -r '.status.description // "Unknown"' 2>/dev/null || echo "Unknown")
-        fail "CE test: Expected status_id=6 (CE), got status_id=$CE_STATUS_ID ($CE_STATUS_DESC)"
+        fail "CE test: Expected status_id=$STATUS_CE (CE), got status_id=$CE_STATUS_ID ($CE_STATUS_DESC)"
     fi
 fi
 
@@ -278,9 +287,9 @@ if [ "$ABOUT_RESPONSE" != "CURL_FAILED" ] && [ -n "$ABOUT_RESPONSE" ]; then
 
         if [ "$NET_RESPONSE" != "CURL_FAILED" ]; then
             NET_STDOUT=$(echo "$NET_RESPONSE" | jq -r '.stdout // empty' 2>/dev/null || echo "")
-            if echo "$NET_STDOUT" | grep -q "NETWORK_BLOCKED"; then
+            if [[ "$NET_STDOUT" == *"NETWORK_BLOCKED"* ]]; then
                 pass "Network correctly blocked (verified via code execution)"
-            elif echo "$NET_STDOUT" | grep -q "NETWORK_AVAILABLE"; then
+            elif [[ "$NET_STDOUT" == *"NETWORK_AVAILABLE"* ]]; then
                 fail "Network is NOT blocked - security risk!" "Code was able to reach external network"
             else
                 NET_STATUS_DESC=$(echo "$NET_RESPONSE" | jq -r '.status.description // "Unknown"' 2>/dev/null || echo "Unknown")
