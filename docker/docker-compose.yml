@@ -15,15 +15,20 @@ services:
       - POSTGRES_HOST=judge0-db
       - POSTGRES_DB=${JUDGE0_DB_NAME:-judge0}
       - POSTGRES_USER=${JUDGE0_DB_USER:-judge0}
-      - POSTGRES_PASSWORD=${JUDGE0_DB_PASSWORD:?에러: .env 파일에 JUDGE0_DB_PASSWORD가 설정되지 않았습니다.}
+      - POSTGRES_PASSWORD=${JUDGE0_DB_PASSWORD:?에러 - .env 파일에 JUDGE0_DB_PASSWORD가 설정되지 않았습니다.}
       # 리소스 제한 (MVP용 최소 설정)
       - MAX_QUEUE_SIZE=${JUDGE0_MAX_QUEUE_SIZE:-10}
       - CPU_TIME_LIMIT=${JUDGE0_CPU_TIME_LIMIT:-5}
       - WALL_TIME_LIMIT=${JUDGE0_WALL_TIME_LIMIT:-10}
-      - MEMORY_LIMIT=${JUDGE0_MEMORY_LIMIT:-256000}
+      - MEMORY_LIMIT=${JUDGE0_MEMORY_LIMIT:-1024000}
+      - MAX_MEMORY_LIMIT=${JUDGE0_MAX_MEMORY_LIMIT:-2048000}
       - ENABLE_NETWORK=false
       # 워커 수 최소화
       - MAX_NUMBER_OF_CONCURRENT_JOBS=${JUDGE0_MAX_WORKERS:-2}
+      # cgroup v2 호환성: macOS Docker Desktop에서는 cgroup v1이 지원되지 않으므로
+      # 프로세스 단위 리소스 제한을 사용 (isolate --cg 플래그 비활성화)
+      - ENABLE_PER_PROCESS_AND_THREAD_TIME_LIMIT=true
+      - ENABLE_PER_PROCESS_AND_THREAD_MEMORY_LIMIT=true
     depends_on:
       judge0-db:
         condition: service_healthy
@@ -43,7 +48,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G
+          memory: 3G
           cpus: '2'
 
   # Judge0 전용 PostgreSQL
@@ -53,7 +58,7 @@ services:
     environment:
       POSTGRES_DB: ${JUDGE0_DB_NAME:-judge0}
       POSTGRES_USER: ${JUDGE0_DB_USER:-judge0}
-      POSTGRES_PASSWORD: ${JUDGE0_DB_PASSWORD:?에러: .env 파일에 JUDGE0_DB_PASSWORD가 설정되지 않았습니다.}
+      POSTGRES_PASSWORD: "${JUDGE0_DB_PASSWORD:?에러 - .env 파일에 JUDGE0_DB_PASSWORD가 설정되지 않았습니다.}"
     volumes:
       - judge0_db_data:/var/lib/postgresql/data
     networks:
