@@ -1,0 +1,12 @@
+{
+  "name": "ct-system",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Coding Test Practice Platform - Monorepo Root",
+  "scripts": {
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7"
+  }
+}
